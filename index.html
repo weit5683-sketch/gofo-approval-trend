@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>GUS 审批时效趋势看板</title>
+<style>
+  :root { --bg:#f4f6fa; --card:#ffffff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --accent:#1b4faf; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif; background:var(--bg); color:var(--ink); padding:20px; }
+  header { max-width:1200px; margin:0 auto 8px; }
+  h1 { font-size:27px; font-weight:600; }
+  .sub { color:var(--muted); font-size:15px; margin-top:5px; }
+  .legend-hint { color:var(--muted); font-size:14px; margin-top:7px; }
+  .grid { max-width:1200px; margin:0 auto; display:grid; grid-template-columns:1fr; gap:18px; margin-top:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 8px 2px; box-shadow:0 1px 3px rgba(16,24,40,.06); }
+  .card .head { display:flex; align-items:flex-start; justify-content:space-between; padding:6px 12px 0; gap:12px; }
+  .card .head .titles { display:flex; align-items:baseline; gap:10px; }
+  .card .head .cn { color:var(--accent); font-size:19px; font-weight:600; }
+  .card .head .en { color:var(--muted); font-size:14px; }
+  .card .summ { font-size:14px; line-height:1.6; text-align:right; border:1px solid var(--line); border-radius:8px; padding:7px 12px; background:#f8fafc; white-space:nowrap; }
+  .card .summ b { color:var(--accent); }
+  .chart { width:100%; height:420px; }
+  .chart-top { height:440px; margin-top:4px; }
+  footer { max-width:1200px; margin:18px auto 0; color:var(--muted); font-size:14px; line-height:1.8; }
+  footer b { color:var(--ink); }
+</style>
+</head>
+<body>
+<header>
+  <h1>GUS 审批时效趋势看板 <span style="color:var(--muted);font-weight:400;font-size:16px;">(按周 multi-week)</span></h1>
+  <div class="sub">数据来源：GUS 海外 OA 审批流程导出（按周）｜按“板块”分卡，卡内按三级部门着色</div>
+  <div class="legend-hint">横轴 = 自然周 · 纵轴 = 平均审批时长（h）· 每条线=一个三级部门 · 线尾标注最新一周数值 · 悬停可看每周审批次数</div>
+</header>
+<div class="grid" id="grid">
+  <div class="card">
+    <div class="head">
+      <div class="titles"><span class="cn">各板块平均审批时长</span><span class="en">Overview</span></div>
+      <div class="summ" id="summ-top"></div>
+    </div>
+    <div class="chart chart-top" id="chart-top"></div>
+  </div>
+</div>
+<footer>
+  <b>口径说明：</b><br/>
+  1. <b>数据窗口</b>：2026-09-28 起的全部自然周（周一至周日），共 <span id="wc"></span> 周。<br/>
+  2. <b>平均审批时长</b> = Σ单次审批时长 ÷ 审批次数 × 24，单位小时；只统计审批动作，不含起草节点与被考核人自评。<br/>
+  3. <b>部门</b> = 审批人三级部门（按工号匹配花名册）；未匹配到部门的审批已剔除。<br/>
+  4. <b>汇总框</b>：最后一行的单据数、审批次数、平均时长、>48h 单据占比均为最新一周口径。<br/>
+  5. <b>缺失周</b>：该部门当周无审批动作时折线断开，不补 0。<br/>
+  <span id="upd" style="font-size:12px;"></span>
+</footer>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+const D = {"weeks": ["09-28~10-04", "10-05~10-11", "10-12~10-18", "10-19~10-25", "10-26~11-01", "11-02~11-08", "11-09~11-15", "11-16~11-22"], "cards": [{"group": "履约前台", "en": "Fulfillment Front", "depts": ["CA 加拿大大区", "FL 佛州大区", "GL 大湖大区", "Ground项目部", "MS 中南大区", "NE 东北大区", "TX 德州大区", "WE 美西大区"], "summary": {"docs": 583, "acts": 877, "avg": 44.8, "p48": 29.3}, "series": [{"name": "CA 加拿大大区", "vals": [25.7, 32.9, 15.9, 66.9, 16.5, 15.5, 19.0, 47.3], "cnts": [8, 27, 29, 70, 30, 40, 49, 62]}, {"name": "FL 佛州大区", "vals": [98.4, 45.3, 50.3, 46.9, 74.8, 45.5, 63.3, 52.0], "cnts": [121, 99, 107, 84, 101, 128, 104, 112]}, {"name": "GL 大湖大区", "vals": [31.6, 29.4, 51.6, 47.8, 57.1, 17.7, 47.8, 48.4], "cnts": [93, 87, 150, 118, 105, 97, 95, 78]}, {"name": "Ground项目部", "vals": [19.4, 25.9, 25.5, 107.7, 68.4, 17.9, 23.2, 65.1], "cnts": [106, 110, 147, 188, 212, 100, 114, 77]}, {"name": "MS 中南大区", "vals": [65.6, 39.1, 41.8, 31.9, 20.2, 21.5, 34.9, 46.3], "cnts": [178, 150, 171, 119, 128, 179, 152, 109]}, {"name": "NE 东北大区", "vals": [116.3, 53.4, 34.1, 50.1, 155.1, 24.6, 28.9, 58.6], "cnts": [443, 264, 163, 174, 344, 254, 152, 151]}, {"name": "TX 德州大区", "vals": [37.8, 17.5, 33.0, 17.7, 15.1, 26.9, 56.2, 38.8], "cnts": [212, 157, 200, 109, 134, 156, 158, 153]}, {"name": "WE 美西大区", "vals": [27.6, 44.0, 10.1, 14.7, 14.8, 69.8, 33.6, 14.3], "cnts": [260, 232, 159, 145, 229, 172, 181, 135]}]}, {"group": "业务前台", "en": "Business Front", "depts": ["BD 本地客户部", "IC 跨境客户部"], "summary": {"docs": 26, "acts": 38, "avg": 274.2, "p48": 50.0}, "series": [{"name": "BD 本地客户部", "vals": [37.2, 61.3, 68.8, 26.3, 24.7, 40.9, 51.7, 559.2], "cnts": [9, 7, 24, 7, 2, 5, 6, 18]}, {"name": "IC 跨境客户部", "vals": [14.6, 16.5, 4.5, 41.2, 28.1, 30.0, 7.2, 17.7], "cnts": [13, 14, 13, 7, 6, 29, 3, 20]}]}, {"group": "运营中台", "en": "Operations Middle", "depts": ["BM 品牌市场部", "CM 运力管理部", "CS 客户服务部", "DM 派送管理部", "DO 数字运营部", "OM 操作管理部", "QC 质量控制部", "SM 站点管理部"], "summary": {"docs": 83, "acts": 103, "avg": 50.9, "p48": 19.3}, "series": [{"name": "BM 品牌市场部", "vals": [null, null, 139.0, 156.8, null, null, 304.6, 30.9], "cnts": [0, 0, 4, 22, 0, 0, 4, 13]}, {"name": "CM 运力管理部", "vals": [287.3, 55.3, 10.6, 12.5, 13.2, 11.4, 5.8, 4.1], "cnts": [42, 61, 11, 19, 21, 42, 37, 13]}, {"name": "CS 客户服务部", "vals": [55.8, 56.5, 5.5, 19.4, 7.0, 27.3, 37.2, 10.6], "cnts": [1, 44, 8, 8, 11, 19, 26, 5]}, {"name": "DM 派送管理部", "vals": [0.0, null, null, null, null, 9.3, null, null], "cnts": [1, 0, 0, 0, 0, 2, 0, 0]}, {"name": "DO 数字运营部", "vals": [43.8, 33.7, 27.2, 13.5, 31.7, 20.9, 46.3, 9.1], "cnts": [18, 111, 28, 24, 15, 39, 86, 18]}, {"name": "OM 操作管理部", "vals": [108.6, 23.1, 20.5, 24.6, 20.2, 59.7, 30.2, 85.2], "cnts": [66, 33, 15, 33, 28, 37, 52, 36]}, {"name": "QC 质量控制部", "vals": [7.4, 26.6, 36.7, 57.3, 182.9, 205.1, 0.2, 114.5], "cnts": [8, 4, 20, 17, 10, 7, 1, 13]}, {"name": "SM 站点管理部", "vals": [11.9, 15.8, 3.8, 3.5, 1.6, 97.0, 1.5, 2.7], "cnts": [8, 18, 14, 6, 11, 20, 17, 5]}]}, {"group": "后台", "en": "Back Office", "depts": ["AD 行政部", "AP 国内行政采购部", "GUS 人力资源部"], "summary": {"docs": 542, "acts": 1052, "avg": 34.6, "p48": 39.9}, "series": [{"name": "AD 行政部", "vals": [10.3, 45.3, 0.8, 37.4, 4.9, 36.4, 83.6, 2.5], "cnts": [44, 70, 11, 7, 16, 52, 48, 15]}, {"name": "AP 国内行政采购部", "vals": [40.2, 52.4, 22.1, 14.2, 0.3, 0.0, 0.0, 0.0], "cnts": [29, 35, 19, 48, 20, 36, 30, 27]}, {"name": "GUS 人力资源部", "vals": [28.2, 51.1, 27.8, 31.1, 22.6, 48.9, 24.4, 36.0], "cnts": [987, 1116, 1091, 1226, 1080, 1251, 937, 1010]}]}], "overview": [{"name": "履约前台", "vals": [67.2, 38.8, 34.0, 50.7, 70.1, 32.2, 39.1, 44.8]}, {"name": "业务前台", "vals": [23.8, 31.4, 46.2, 33.7, 27.2, 31.6, 36.9, 274.2]}, {"name": "运营中台", "vals": [140.5, 39.7, 25.7, 46.3, 33.8, 44.7, 35.8, 50.9]}, {"name": "后台", "vals": [27.8, 50.8, 27.4, 30.5, 21.9, 47.1, 26.5, 34.6]}], "colors": ["#2563eb", "#0e7c86", "#d97706", "#b03a5b", "#6d4ad8", "#15803d", "#c2410c", "#0891b2", "#7c3aed", "#65a30d"], "updated": "2026-11-24 18:38"};
+document.getElementById('wc').textContent = D.weeks.length;
+document.getElementById('upd').textContent = '生成时间：' + D.updated;
+
+function lineTraces(series, showLegend) {
+  return series.map((s, i) => ({
+    x: D.weeks, y: s.vals, name: s.name, mode: 'lines+markers+text',
+    line: { width: 2, color: D.colors[i % D.colors.length] },
+    marker: { size: 5, color: D.colors[i % D.colors.length] },
+    text: s.vals.map((v, k) => (k === s.vals.length - 1 && v !== null) ? v.toFixed(1) : ''),
+    textposition: 'top center', textfont: { size: 10, color: D.colors[i % D.colors.length] },
+    connectgaps: false, showlegend: showLegend,
+    customdata: s.cnts,
+    hovertemplate: '<b>%{fullData.name}</b><br>%{x}<br>平均 %{y:.1f} h<br>审批 %{customdata} 次<extra></extra>'
+  }));
+}
+const layoutBase = {
+  margin: { l: 48, r: 24, t: 12, b: 56 },
+  paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+  xaxis: { tickangle: -30, gridcolor: '#eef1f5' },
+  yaxis: { title: '平均审批时长（h）', gridcolor: '#eef1f5', zerolinecolor: '#e5e7eb' },
+  legend: { orientation: 'h', y: -0.28, font: { size: 11 } },
+  hovermode: 'closest'
+};
+
+const grid = document.getElementById('grid');
+D.cards.forEach((c, idx) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = '<div class="head"><div class="titles"><span class="cn">' + c.group +
+    '</span><span class="en">' + c.en + '</span></div><div class="summ">最新一周：单据 <b>' + c.summary.docs +
+    '</b> 张 · 审批 <b>' + c.summary.acts + '</b> 次 · 平均 <b>' + c.summary.avg.toFixed(1) +
+    '</b> h · &gt;48h 单据占比 <b>' + c.summary.p48.toFixed(1) + '%</b></div></div>' +
+    '<div class="chart" id="ch' + idx + '"></div>';
+  grid.appendChild(card);
+  Plotly.newPlot('ch' + idx, lineTraces(c.series, true), Object.assign({}, layoutBase, { height: 420 }));
+});
+
+Plotly.newPlot('chart-top', lineTraces(D.overview, true), Object.assign({}, layoutBase, { height: 440 }));
+const lastW = D.weeks[D.weeks.length - 1];
+document.getElementById('summ-top').textContent = '最新一周：' + lastW;
+window.addEventListener('resize', () => {
+  document.querySelectorAll('.chart,.chart-top').forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
+});
+</script>
+</body>
+</html>
